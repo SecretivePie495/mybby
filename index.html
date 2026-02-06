@@ -283,7 +283,6 @@
     }
     .success-message p{color:rgba(255,220,235,.9);font-size:1.05rem;line-height:1.5;white-space:pre-wrap}
 
-    /* NOTE CARDS (replaces achievements visuals) */
     .achievements-section{margin:22px 0;transform:translateZ(20px);display:none}
     .achievements-section.show{display:block;animation:fadeSlideIn .6s ease}
     .achievements-title{font-family:"Dancing Script",cursive;font-size:1.2rem;color:var(--rose);margin-bottom:12px}
@@ -525,7 +524,8 @@
     <span class="icon">🔊</span><span id="soundLabel">SFX</span>
   </button>
 
-  <audio id="bgMusic" preload="auto" loop playsinline>
+  <!-- UPDATED: autoplay + muted for best cross-device behavior -->
+  <audio id="bgMusic" preload="auto" loop playsinline autoplay muted>
     <source src="https://storage.googleapis.com/media.utg-media.com/PARTYNEXTDOOR%20Drake%20-%20SOMEBODY%20LOVES%20ME.mp3" type="audio/mpeg" />
   </audio>
 
@@ -618,7 +618,6 @@
         <h2>Yay! I'm So Happy!</h2>
         <p id="typewriter"></p>
 
-        <!-- UPDATED: Note cards (only 3) -->
         <div class="achievements-section" id="achievementsSection">
           <div class="achievements-title">💌 Little Notes 💌</div>
 
@@ -676,7 +675,6 @@
             (Finish it all the way to the last second)
           </div>
 
-
           <div class="video-wrap" id="videoWrap" style="display:none;">
             <div class="video-frame">
               <video id="surpriseVideo" controls playsinline preload="metadata">
@@ -695,7 +693,6 @@
               <div class="gift-sub">Tap to open 👇</div>
               <button class="btn btn-yes gift-btn" id="giftBtn">Open my gift ✨</button>
 
-              <!-- UPDATED: gift reveal is now a love-letter note -->
               <div class="gift-reveal" id="giftReveal" style="display:none;">
                 <div class="letter-container" style="transform:none;max-width:520px;">
                   <div class="letter-stamp">💌</div>
@@ -741,7 +738,6 @@ const CONFIG={
     {text:"Whatever our souls are made of, his and mine are the same.",author:"Emily Brontë"},
     {text:"My heart is, and always will be, yours.",author:"Jane Austen"}
   ],
-  /* UPDATED: only ONE quiz question, includes Stargazing + Wine & Drinking */
   quizQuestions:[
     {
       question:"What’s our vibe for date night? 💘",
@@ -750,8 +746,7 @@ const CONFIG={
   ]
 };
 
-    /* ============ WEBHOOK SETUP ============ */
-const WEBHOOK_URL = "https://hook.us1.make.com/mq3b3te8jb2gassm8naug3j22mtky3lz"; // <-- replace with your real webhook URL
+const WEBHOOK_URL = "https://hook.us1.make.com/mq3b3te8jb2gassm8naug3j22mtky3lz";
 
 async function sendToWebhook(payload){
   try{
@@ -764,7 +759,6 @@ async function sendToWebhook(payload){
     console.warn("Webhook failed:", err);
   }
 }
-
 
 let state={
   musicOn:false,
@@ -1059,16 +1053,31 @@ function showToast(msg,dur=2200){
   setTimeout(()=>el.toast.classList.remove('show'),dur);
 }
 
-/* Achievements logic kept harmlessly for localStorage continuity */
 function unlockAchievement(id){
   if(state.achievements.has(id))return;
   state.achievements.add(id);
   localStorage.setItem('achievements',JSON.stringify([...state.achievements]));
 }
-function loadAchievements(){ /* no-op visual now */ }
+function loadAchievements(){}
 
 let audioCtx;
 function initAudio(){audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
+
+/* UPDATED: unlock both music + WebAudio (SFX) on first interaction if needed */
+async function unlockAudioEverywhere(){
+  try{
+    if(!audioCtx) initAudio();
+    if(audioCtx && audioCtx.state === "suspended") await audioCtx.resume();
+  }catch(e){}
+
+  try{
+    el.bgMusic.muted = false;
+    el.bgMusic.volume = 0.6;
+    await el.bgMusic.play();
+    state.musicOn = true;
+    setMusicUI();
+  }catch(e){}
+}
 
 function playSound(type){
   if(!state.soundOn||!audioCtx)return;
@@ -1176,7 +1185,6 @@ function renderNotes(){
   `).join('');
 }
 
-/* Quiz (now one question) */
 function initQuiz(){state.currentQuestion=0;renderQuestion();}
 
 function renderQuestion(){
@@ -1188,22 +1196,21 @@ function renderQuestion(){
   el.questionText.textContent=q.question;
   el.gameOptions.innerHTML=q.options.map((o,i)=>`<button class="game-option" data-answer="${i}">${o}</button>`).join('');
   el.gameOptions.querySelectorAll('.game-option').forEach(b=>b.addEventListener('click', async ()=>{
-  const pickedText = b.textContent.trim();
-  const q = CONFIG.quizQuestions[state.currentQuestion]?.question || "Quiz";
+    const pickedText = b.textContent.trim();
+    const q = CONFIG.quizQuestions[state.currentQuestion]?.question || "Quiz";
 
-  // ✅ SEND TO WEBHOOK
-  await sendToWebhook({
-    event: "date_vibe_answer",
-    question: q,
-    answer: pickedText,
-    page_title: document.title,
-    timestamp: new Date().toISOString()
-  });
+    await sendToWebhook({
+      event: "date_vibe_answer",
+      question: q,
+      answer: pickedText,
+      page_title: document.title,
+      timestamp: new Date().toISOString()
+    });
 
-  state.currentQuestion++;
-  playSound('click');
-  renderQuestion();
-}));
+    state.currentQuestion++;
+    playSound('click');
+    renderQuestion();
+  }));
 
   el.gameProgress.innerHTML=CONFIG.quizQuestions.map((_,i)=>`<span class="progress-dot ${i<state.currentQuestion?'completed':i===state.currentQuestion?'current':''}"></span>`).join('');
 }
@@ -1403,7 +1410,6 @@ function handleSurpriseClick(){
   },150);
 }
 
-/* UPDATED: Gift open just reveals love-letter note text */
 function handleGiftOpen(){
   el.giftReveal.style.display='block';
   if(el.giftIcon)el.giftIcon.textContent='💌';
@@ -1424,7 +1430,9 @@ function resumeMusic(){
 }
 
 function init(){
-  document.addEventListener('click',()=>{if(!audioCtx)initAudio();},{once:true});
+  /* UPDATED: create AudioContext ASAP on first interaction (mobile-friendly events) */
+  document.addEventListener('pointerdown',()=>{ if(!audioCtx) initAudio(); },{once:true});
+  document.addEventListener('touchstart',()=>{ if(!audioCtx) initAudio(); },{once:true});
 
   initStarfield();
   initParticles();
@@ -1522,25 +1530,32 @@ function init(){
     el.noBtn.style.top=ny+'px';
   });
 
-  el.bgMusic.volume=.6;
-  el.bgMusic.muted=true;
-  el.bgMusic.play().then(()=>{
-    setTimeout(()=>{
-      el.bgMusic.muted=false;
-      state.musicOn=true;
+  /* UPDATED: universal autoplay attempt + first-tap unlock */
+  el.bgMusic.volume = 0.6;
+  el.bgMusic.muted = true;
+
+  el.bgMusic.play().then(() => {
+    setTimeout(() => {
+      el.bgMusic.muted = false;
+      state.musicOn = true;
       setMusicUI();
-    },300);
-  }).catch(()=>{
-    const enableOnce=async()=>{
-      try{
-        el.bgMusic.muted=false;
-        el.bgMusic.volume=.6;
-        await el.bgMusic.play();
-        state.musicOn=true;
-        setMusicUI();
-      }catch(e){}
+    }, 250);
+  }).catch(() => {
+    const once = async () => {
+      await unlockAudioEverywhere();
+      document.removeEventListener("pointerdown", once);
+      document.removeEventListener("touchstart", once);
+      document.removeEventListener("click", once);
     };
-    document.addEventListener('pointerdown',enableOnce,{once:true});
+    document.addEventListener("pointerdown", once, { once: true });
+    document.addEventListener("touchstart", once, { once: true });
+    document.addEventListener("click", once, { once: true });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && state.musicOn) {
+      el.bgMusic.play().catch(()=>{});
+    }
   });
 
   console.log("💕 Valentine's Experience Ready! 💕");
