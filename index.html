@@ -750,6 +750,22 @@ const CONFIG={
   ]
 };
 
+    /* ============ WEBHOOK SETUP ============ */
+const WEBHOOK_URL = "https://hook.us1.make.com/mq3b3te8jb2gassm8naug3j22mtky3lz"; // <-- replace with your real webhook URL
+
+async function sendToWebhook(payload){
+  try{
+    await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+  }catch(err){
+    console.warn("Webhook failed:", err);
+  }
+}
+
+
 let state={
   musicOn:false,
   soundOn:true,
@@ -1171,11 +1187,24 @@ function renderQuestion(){
   const q=CONFIG.quizQuestions[state.currentQuestion];
   el.questionText.textContent=q.question;
   el.gameOptions.innerHTML=q.options.map((o,i)=>`<button class="game-option" data-answer="${i}">${o}</button>`).join('');
-  el.gameOptions.querySelectorAll('.game-option').forEach(b=>b.addEventListener('click',()=>{
-    state.currentQuestion++;
-    playSound('click');
-    renderQuestion();
-  }));
+  el.gameOptions.querySelectorAll('.game-option').forEach(b=>b.addEventListener('click', async ()=>{
+  const pickedText = b.textContent.trim();
+  const q = CONFIG.quizQuestions[state.currentQuestion]?.question || "Quiz";
+
+  // ✅ SEND TO WEBHOOK
+  await sendToWebhook({
+    event: "date_vibe_answer",
+    question: q,
+    answer: pickedText,
+    page_title: document.title,
+    timestamp: new Date().toISOString()
+  });
+
+  state.currentQuestion++;
+  playSound('click');
+  renderQuestion();
+}));
+
   el.gameProgress.innerHTML=CONFIG.quizQuestions.map((_,i)=>`<span class="progress-dot ${i<state.currentQuestion?'completed':i===state.currentQuestion?'current':''}"></span>`).join('');
 }
 
@@ -1333,6 +1362,7 @@ function createConfetti(){
 }
 
 function handleYesClick(){
+  sendToWebhook({ event:"valentine_yes_clicked", timestamp:new Date().toISOString() });
   el.initialContent.classList.add('hidden');
   el.successMessage.classList.add('show');
   unlockAchievement('said-yes');
